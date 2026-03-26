@@ -15,6 +15,13 @@
       "when": 1774516900461,
       "tag": "0001_thankful_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774518169235,
+      "tag": "0002_yielding_susan_delgado",
+      "breakpoints": true
     }
   ]
 }

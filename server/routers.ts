@@ -20,6 +20,7 @@ import {
   OracleConnectionConfig,
 } from "./oracle-driver";
 import { invokeLLM } from "./_core/llm";
+import { semanticRouter } from "./routers-semantic";
 
 export const appRouter = router({
   system: systemRouter,
@@ -333,6 +334,9 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
         return { success: true, ...inference };
       }),
   }),
+
+  // 语义层管理
+  semantic: semanticRouter,
 
   // AI 查询
   query: router({

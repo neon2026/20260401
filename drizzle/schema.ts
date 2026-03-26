@@ -32,14 +32,14 @@ export type InsertUser = typeof users.$inferInsert;
 export const databaseConnections = mysqlTable("database_connections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(), // 连接名称，如 "测试Oracle库"
-  databaseType: varchar("databaseType", { length: 50 }).notNull(), // oracle, mysql, postgresql, etc.
+  name: varchar("name", { length: 255 }).notNull(),
+  databaseType: varchar("databaseType", { length: 50 }).notNull(),
   host: varchar("host", { length: 255 }).notNull(),
   port: int("port").notNull(),
-  database: varchar("database", { length: 255 }).notNull(), // SID 或 database name
+  database: varchar("database", { length: 255 }).notNull(),
   username: varchar("username", { length: 255 }).notNull(),
-  password: longtext("password").notNull(), // 加密存储
-  isActive: boolean("isActive").default(false).notNull(), // 当前活跃连接
+  password: longtext("password").notNull(),
+  isActive: boolean("isActive").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -54,11 +54,12 @@ export type InsertDatabaseConnection = typeof databaseConnections.$inferInsert;
 export const semanticTableDefinitions = mysqlTable("semantic_table_definitions", {
   id: int("id").autoincrement().primaryKey(),
   connectionId: int("connectionId").notNull(),
-  tableName: varchar("tableName", { length: 255 }).notNull(), // 原始表名，如 USERS
-  tableAlias: varchar("tableAlias", { length: 255 }).notNull(), // 中文别名，如 "用户表"
-  tableComment: text("tableComment"), // 业务注释
-  keywords: text("keywords"), // JSON 数组：["用户", "账户"]
-  sampleData: longtext("sampleData"), // JSON 格式的示例数据
+  tableName: varchar("tableName", { length: 255 }).notNull(),
+  tableAlias: varchar("tableAlias", { length: 255 }).notNull(),
+  tableComment: text("tableComment"),
+  comment: text("comment"),
+  keywords: text("keywords"),
+  sampleData: longtext("sampleData"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -73,12 +74,13 @@ export type InsertSemanticTableDefinition = typeof semanticTableDefinitions.$inf
 export const semanticColumnDefinitions = mysqlTable("semantic_column_definitions", {
   id: int("id").autoincrement().primaryKey(),
   tableId: int("tableId").notNull(),
-  columnName: varchar("columnName", { length: 255 }).notNull(), // 原始字段名
-  columnAlias: varchar("columnAlias", { length: 255 }).notNull(), // 中文别名
-  columnComment: text("columnComment"), // 业务注释
-  dataType: varchar("dataType", { length: 100 }), // NUMBER, VARCHAR2, etc.
-  keywords: text("keywords"), // JSON 数组：["ID", "标识符"]
-  exampleValues: text("exampleValues"), // JSON 数组：["1", "2", "3"]
+  columnName: varchar("columnName", { length: 255 }).notNull(),
+  columnAlias: varchar("columnAlias", { length: 255 }).notNull(),
+  columnComment: text("columnComment"),
+  comment: text("comment"),
+  dataType: varchar("dataType", { length: 100 }),
+  keywords: text("keywords"),
+  exampleValues: text("exampleValues"),
   isPrimaryKey: boolean("isPrimaryKey").default(false),
   isForeignKey: boolean("isForeignKey").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -96,13 +98,13 @@ export const queryHistory = mysqlTable("query_history", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   connectionId: int("connectionId").notNull(),
-  userQuestion: text("userQuestion").notNull(), // 用户的自然语言提问
-  generatedSQL: longtext("generatedSQL"), // AI 生成的 SQL
+  userQuestion: text("userQuestion").notNull(),
+  generatedSQL: longtext("generatedSQL"),
   executionStatus: mysqlEnum("executionStatus", ["success", "error", "pending"]).default("pending"),
-  executionError: text("executionError"), // 执行错误信息
-  resultCount: int("resultCount"), // 返回的行数
-  executionTimeMs: int("executionTimeMs"), // 执行耗时（毫秒）
-  resultData: longtext("resultData"), // JSON 格式的查询结果（仅存储前 1000 行）
+  executionError: text("executionError"),
+  resultCount: int("resultCount"),
+  executionTimeMs: int("executionTimeMs"),
+  resultData: longtext("resultData"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -117,9 +119,9 @@ export const aiInferenceLog = mysqlTable("ai_inference_log", {
   id: int("id").autoincrement().primaryKey(),
   connectionId: int("connectionId").notNull(),
   inferenceType: mysqlEnum("inferenceType", ["table", "column"]).notNull(),
-  targetName: varchar("targetName", { length: 255 }).notNull(), // 表名或字段名
-  aiResponse: longtext("aiResponse").notNull(), // AI 返回的完整响应（JSON）
-  userApproved: boolean("userApproved").default(false), // 用户是否批准了推断结果
+  targetName: varchar("targetName", { length: 255 }).notNull(),
+  aiResponse: longtext("aiResponse").notNull(),
+  userApproved: boolean("userApproved").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
