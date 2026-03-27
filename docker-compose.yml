@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-ai-solution
+    ports:
+      - "3000:3000"
+    environment:
+      # Database configuration
+      DATABASE_URL: ${DATABASE_URL:-mysql://root:password@mysql:3306/enterprise_ai}
+      
+      # Oracle configuration (for data consultation)
+      ORACLE_HOST: ${ORACLE_HOST:-192.168.59.166}
+      ORACLE_PORT: ${ORACLE_PORT:-1521}
+      ORACLE_SID: ${ORACLE_SID:-orcl}
+      ORACLE_USER: ${ORACLE_USER:-neon}
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-oracle}
+      
+      # API Keys
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      
+      # OAuth configuration
+      VITE_APP_ID: ${VITE_APP_ID}
+      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL}
+      VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL}
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID}
+      OWNER_NAME: ${OWNER_NAME}
+      
+      # Manus APIs
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY}
+      VITE_FRONTEND_FORGE_API_URL: ${VITE_FRONTEND_FORGE_API_URL}
+      VITE_FRONTEND_FORGE_API_KEY: ${VITE_FRONTEND_FORGE_API_KEY}
+      
+      # Analytics
+      VITE_ANALYTICS_ENDPOINT: ${VITE_ANALYTICS_ENDPOINT}
+      VITE_ANALYTICS_WEBSITE_ID: ${VITE_ANALYTICS_WEBSITE_ID}
+      VITE_APP_TITLE: ${VITE_APP_TITLE:-Enterprise AI Solution}
+      VITE_APP_LOGO: ${VITE_APP_LOGO}
+      
+      # Node environment
+      NODE_ENV: production
+    
+    volumes:
+      # Mount logs directory for debugging
+      - ./logs:/app/logs
+      - ./.manus-logs:/app/.manus-logs
+    
+    depends_on:
+      - mysql
+    
+    networks:
+      - enterprise-network
+    
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # MySQL for system metadata storage
+  mysql:
+    image: mysql:8.0
+    container_name: enterprise-ai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: enterprise_ai
+      MYSQL_USER: ${MYSQL_USER:-appuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-apppassword}
+    
+    ports:
+      - "3306:3306"
+    
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    
+    networks:
+      - enterprise-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+volumes:
+  mysql_data:
+
+networks:
+  enterprise-network:
+    driver: bridge
