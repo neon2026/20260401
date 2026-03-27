@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap } from "lucide-react";
 
 export default function DatabaseConnection() {
   const [formData, setFormData] = useState({
@@ -20,9 +20,11 @@ export default function DatabaseConnection() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
 
   const listConnections = trpc.database.listConnections.useQuery();
   const createConnection = trpc.database.createConnection.useMutation();
+  const analyzeTablesAutomatically = trpc.autoAnalysis.analyzeTablesAutomatically.useMutation();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,6 +55,19 @@ export default function DatabaseConnection() {
       toast.error(error.message || "连接失败");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzeTables = async (connectionId: number) => {
+    setAnalyzingId(connectionId);
+    try {
+      const result = await analyzeTablesAutomatically.mutateAsync({ connectionId });
+      toast.success(`✅ 分析完成！已分析 ${result.tablesAnalyzed} 个表`);
+      listConnections.refetch();
+    } catch (error: any) {
+      toast.error(error.message || "分析失败");
+    } finally {
+      setAnalyzingId(null);
     }
   };
 
@@ -200,8 +215,23 @@ export default function DatabaseConnection() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      使用
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      onClick={() => handleAnalyzeTables(conn.id)}
+                      disabled={analyzingId === conn.id}
+                    >
+                      {analyzingId === conn.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          分析中...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 mr-2" />
+                          提取并分析
+                        </>
+                      )}
                     </Button>
                     <Button variant="outline" size="sm" className="text-red-600">
                       <Trash2 className="h-4 w-4" />
