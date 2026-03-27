@@ -21,6 +21,7 @@ import {
 } from "./oracle-driver";
 import { invokeLLM } from "./_core/llm";
 import { semanticRouter } from "./routers-semantic";
+import { dictionaryRouter } from "./routers-dictionary";
 
 export const appRouter = router({
   system: systemRouter,
@@ -337,6 +338,9 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
 
   // 语义层管理
   semantic: semanticRouter,
+
+  // 数据字典管理
+  dictionary: dictionaryRouter,
 
   // AI 查询
   query: router({
