@@ -10,7 +10,7 @@ import DatabaseConnection from "./pages/DatabaseConnection";
 import MetadataExtraction from "./pages/MetadataExtraction";
 import QueryHistory from "./pages/QueryHistory";
 import DataDictionary from "./pages/DataDictionary";
-import SemanticImport from "./pages/SemanticImport";
+
 import ExecutionLogs from "./pages/ExecutionLogs";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
@@ -49,7 +49,7 @@ function Router() {
         <Route path="/metadata-extraction" component={MetadataExtraction} />
         <Route path="/query-history" component={QueryHistory} />
         <Route path="/data-dictionary" component={DataDictionary} />
-        <Route path="/semantic-import" component={SemanticImport} />
+
         <Route path="/execution-logs" component={ExecutionLogs} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

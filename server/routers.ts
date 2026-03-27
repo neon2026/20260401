@@ -20,7 +20,6 @@ import {
   OracleConnectionConfig,
 } from "./oracle-driver";
 import { invokeLLM } from "./_core/llm";
-import { semanticRouter } from "./routers-semantic";
 import { dictionaryRouter } from "./routers-dictionary";
 import { autoAnalysisRouter } from "./routers-auto-analysis";
 
@@ -337,9 +336,6 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
         return { success: true, ...inference };
       }),
   }),
-
-  // 语义层管理
-  semantic: semanticRouter,
 
   // 数据字典管理
   dictionary: dictionaryRouter,

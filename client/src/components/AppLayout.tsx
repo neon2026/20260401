@@ -6,7 +6,7 @@ import {
   History,
   BookOpen,
   Database,
-  Upload,
+
   FileText,
   LogOut,
   Menu,
@@ -47,11 +47,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       label: "数据库连接",
       href: "/database-connection",
     },
-    {
-      icon: Upload,
-      label: "语义导入",
-      href: "/semantic-import",
-    },
+
     {
       icon: FileText,
       label: "执行日志",
