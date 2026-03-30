@@ -10,11 +10,10 @@ import DatabaseConnection from "./pages/DatabaseConnection";
 import MetadataExtraction from "./pages/MetadataExtraction";
 import QueryHistory from "./pages/QueryHistory";
 import DataDictionary from "./pages/DataDictionary";
-
+import Login from "./pages/Login";
 import ExecutionLogs from "./pages/ExecutionLogs";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
-import { getLoginUrl } from "./const";
 
 function Router() {
   const { isAuthenticated, loading } = useAuth();
@@ -28,17 +27,7 @@ function Router() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-emerald-50">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">AI 数据咨询</h1>
-          <p className="text-slate-600 mb-8">用自然语言查询您的数据库</p>
-          <a href={getLoginUrl()} className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
-            登录
-          </a>
-        </div>
-      </div>
-    );
+    return <Login />;
   }
 
   return (
