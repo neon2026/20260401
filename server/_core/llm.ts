@@ -209,14 +209,16 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const resolveApiUrl = () => {
+  const baseUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
+    ? ENV.forgeApiUrl
+    : "https://api.deepseek.com/v1";
+  return `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+};
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    throw new Error("LLM API key is not configured. Please set DEEPSEEK_API_KEY, OPENAI_API_KEY, or BUILT_IN_FORGE_API_KEY environment variable.");
   }
 };
 
@@ -280,7 +282,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: process.env.OPENAI_MODEL || "deepseek-chat",
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +298,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = 4096
+  // Remove thinking for Deepseek (not all models support it)
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -309,7 +309,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   });
 
   if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
+    // Deepseek doesn't support json_schema, convert to json_object
+    if (normalizedResponseFormat.type === 'json_schema') {
+      payload.response_format = { type: 'json_object' };
+    } else {
+      payload.response_format = normalizedResponseFormat;
+    }
   }
 
   const response = await fetch(resolveApiUrl(), {

@@ -175,38 +175,43 @@ export const appRouter = router({
           // 获取表元数据
           const tableMetadata = await getTableMetadata(oracleConn);
 
-          // 保存到数据库
+          // 保存到数据库 - 批量插入表定义
+          const insertedTables: { [key: string]: number } = {};
+          
           for (const table of tableMetadata) {
-            const tableResult = await db.insert(semanticTableDefinitions).values({
-              connectionId: input.connectionId,
-              tableName: table.tableName,
-              tableAlias: table.tableName,
-              tableComment: "",
-              keywords: JSON.stringify([]),
-              sampleData: JSON.stringify([]),
-            });
-
-            // 获取插入的表 ID
-            const tables = await db
-              .select()
-              .from(semanticTableDefinitions)
-              .where(eq(semanticTableDefinitions.tableName, table.tableName))
-              .limit(1);
-            const tableId = tables[0]?.id || 0;
-
-            // 保存字段信息
-            for (const column of table.columns) {
-              await db.insert(semanticColumnDefinitions).values({
-                tableId: tableId,
-                columnName: column.columnName,
-                columnAlias: column.columnName,
-                columnComment: column.comments || "",
-                dataType: column.dataType,
+            try {
+              const tableResult = await db.insert(semanticTableDefinitions).values({
+                connectionId: input.connectionId,
+                tableName: table.tableName,
+                tableAlias: table.tableName,
+                tableComment: "",
                 keywords: JSON.stringify([]),
-                exampleValues: JSON.stringify([]),
-                isPrimaryKey: false,
-                isForeignKey: false,
+                sampleData: JSON.stringify([]),
               });
+              
+              // 使用 lastInsertRowid 或直接从返回值获取 ID
+              const tableId = (tableResult as any)?.[0]?.id || 0;
+              insertedTables[table.tableName] = tableId;
+              
+              // 保存字段信息
+              if (tableId > 0) {
+                for (const column of table.columns) {
+                  await db.insert(semanticColumnDefinitions).values({
+                    tableId: tableId,
+                    columnName: column.columnName,
+                    columnAlias: column.columnName,
+                    columnComment: column.comments || "",
+                    dataType: column.dataType,
+                    keywords: JSON.stringify([]),
+                    exampleValues: JSON.stringify([]),
+                    isPrimaryKey: false,
+                    isForeignKey: false,
+                  });
+                }
+              }
+            } catch (err: any) {
+              console.warn(`[Metadata] Failed to insert table ${table.tableName}:`, err.message);
+              // 继续处理其他表
             }
           }
 
@@ -383,12 +388,17 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
 
         // 调用 AI 生成 SQL
         const sqlPrompt = `
-你是一个 SQL 专家。根据以下数据库表结构和用户的问题，生成对应的 SQL 查询语句。
+你是一个 Oracle SQL 专家。根据以下数据库表结构和用户的问题，生成对应的 SQL 查询语句。
 
 数据库表结构:
 ${schemaInfo}
 
 用户问题: ${input.userQuestion}
+
+重要提示：
+- 如果用户问题是查看数据库中的所有表，请使用 dba_tables 或 all_tables 视图，而不是 user_tables
+- 如果用户有 DBA 权限，优先使用 dba_tables 以获取所有表
+- 不要在 SQL 语句末尾添加分号
 
 请生成一个有效的 Oracle SQL 查询语句。只返回 SQL 语句，不需要其他说明。
         `;
@@ -398,7 +408,7 @@ ${schemaInfo}
         });
 
         const generatedSQL = typeof sqlResponse.choices[0].message.content === 'string' 
-          ? sqlResponse.choices[0].message.content.trim() 
+          ? sqlResponse.choices[0].message.content.trim().replace(/;+$/, '') 
           : '';
 
         // 记录查询历史

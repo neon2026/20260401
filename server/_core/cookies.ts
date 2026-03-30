@@ -9,6 +9,11 @@ function isIpAddress(host: string) {
 }
 
 function isSecureRequest(req: Request) {
+  // For local development, allow HTTP
+  if (req.hostname === "localhost" || req.hostname === "127.0.0.1") {
+    return false;
+  }
+
   if (req.protocol === "https") return true;
 
   const forwardedProto = req.headers["x-forwarded-proto"];
@@ -42,7 +47,7 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

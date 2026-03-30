@@ -63,36 +63,43 @@ export async function getTableMetadata(
   try {
     let query = `
       SELECT 
-        table_name,
-        column_name,
-        data_type,
-        nullable,
-        column_id,
-        comments
-      FROM user_tab_columns
-      LEFT JOIN user_col_comments ON user_tab_columns.table_name = user_col_comments.table_name 
-        AND user_tab_columns.column_name = user_col_comments.column_name
+        dtc.table_name,
+        dtc.column_name,
+        dtc.data_type,
+        dtc.nullable,
+        dtc.column_id,
+        dcc.comments
+      FROM dba_tab_columns dtc
+      LEFT JOIN dba_col_comments dcc ON dtc.table_name = dcc.table_name 
+        AND dtc.column_name = dcc.column_name
+        AND dtc.owner = dcc.owner
     `;
 
     if (tableNames && tableNames.length > 0) {
       const tableList = tableNames.map((t) => `'${t.toUpperCase()}'`).join(",");
-      query += ` WHERE user_tab_columns.table_name IN (${tableList})`;
+      query += ` WHERE dtc.table_name IN (${tableList})`;
     }
 
-    query += ` ORDER BY table_name, column_id`;
+    query += ` ORDER BY dtc.table_name, dtc.column_id`;
 
-    const result = await connection.execute(query);
+    console.log('[Oracle] Executing metadata query...');
+    // 设置 fetchSize 来控制一次获取的行数，避免内存溢出
+    const result = await connection.execute(query, {}, { 
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+      fetchSize: 5000  // 每次获取 5000 行
+    });
+    console.log(`[Oracle] Query returned ${result.rows?.length || 0} rows`);
 
     // 将结果转换为 TableMetadata 格式
     const tableMap = new Map<string, ColumnMetadata[]>();
 
     result.rows?.forEach((row: any) => {
-      const tableName = row[0];
-      const columnName = row[1];
-      const dataType = row[2];
-      const nullable = row[3];
-      const columnId = row[4];
-      const comments = row[5];
+      const tableName = Array.isArray(row) ? row[0] : (row as any).TABLE_NAME;
+      const columnName = Array.isArray(row) ? row[1] : (row as any).COLUMN_NAME;
+      const dataType = Array.isArray(row) ? row[2] : (row as any).DATA_TYPE;
+      const nullable = Array.isArray(row) ? row[3] : (row as any).NULLABLE;
+      const columnId = Array.isArray(row) ? row[4] : (row as any).COLUMN_ID;
+      const comments = Array.isArray(row) ? row[5] : (row as any).COMMENTS;
 
       if (!tableMap.has(tableName)) {
         tableMap.set(tableName, []);
@@ -107,10 +114,12 @@ export async function getTableMetadata(
       });
     });
 
-    return Array.from(tableMap.entries()).map(([tableName, columns]) => ({
+    const result_tables = Array.from(tableMap.entries()).map(([tableName, columns]) => ({
       tableName,
       columns: columns.sort((a, b) => a.columnId - b.columnId),
     }));
+    console.log(`[Oracle] Extracted ${result_tables.length} unique tables`);
+    return result_tables;
   } catch (error: any) {
     throw new Error(`Failed to get table metadata: ${error.message}`);
   }
@@ -139,7 +148,7 @@ export async function getTableSampleData(
 export async function executeSql(
   connection: any,
   sql: string,
-  limit: number = 1000
+  limit: number = 10000
 ): Promise<{ rows: any[]; columns: string[]; count: number; executionTimeMs: number }> {
   const startTime = Date.now();
 
@@ -151,14 +160,30 @@ export async function executeSql(
       ) WHERE ROWNUM <= :limit
     `;
 
-    const result = await connection.execute(limitedSql, { limit });
+    // 设置 outFormat 为对象格式，这样行数据会是对象而不是数组
+    const result = await connection.execute(limitedSql, { limit }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
 
     const executionTimeMs = Date.now() - startTime;
 
+    // 获取列名
+    const columns = result.metaData?.map((m: any) => m.name) || [];
+    
+    // 如果 rows 是数组格式（旧版本 oracledb），转换为对象格式
+    let rows = result.rows || [];
+    if (rows.length > 0 && Array.isArray(rows[0])) {
+      rows = rows.map((row: any[]) => {
+        const obj: any = {};
+        columns.forEach((col: string, idx: number) => {
+          obj[col] = row[idx];
+        });
+        return obj;
+      });
+    }
+
     return {
-      rows: result.rows || [],
-      columns: result.metaData?.map((m: any) => m.name) || [],
-      count: result.rows?.length || 0,
+      rows,
+      columns,
+      count: rows.length,
       executionTimeMs,
     };
   } catch (error: any) {
