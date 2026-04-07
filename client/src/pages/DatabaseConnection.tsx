@@ -24,6 +24,7 @@ export default function DatabaseConnection() {
 
   const listConnections = trpc.database.listConnections.useQuery();
   const createConnection = trpc.database.createConnection.useMutation();
+  const deleteConnection = trpc.database.deleteConnection.useMutation();
   const analyzeTablesAutomatically = trpc.autoAnalysis.analyzeTablesAutomatically.useMutation();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +69,20 @@ export default function DatabaseConnection() {
       toast.error(error.message || "分析失败");
     } finally {
       setAnalyzingId(null);
+    }
+  };
+
+  const handleDeleteConnection = async (connectionId: number) => {
+    if (!confirm("确定要删除此数据库连接吗？这将同时删除所有关联的元数据和查询历史。")) {
+      return;
+    }
+
+    try {
+      await deleteConnection.mutateAsync({ connectionId });
+      toast.success("数据库连接已删除");
+      listConnections.refetch();
+    } catch (error: any) {
+      toast.error(error.message || "删除失败");
     }
   };
 
@@ -233,8 +248,18 @@ export default function DatabaseConnection() {
                         </>
                       )}
                     </Button>
-                    <Button variant="outline" size="sm" className="text-red-600">
-                      <Trash2 className="h-4 w-4" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-red-600 hover:bg-red-50"
+                      onClick={() => handleDeleteConnection(conn.id)}
+                      disabled={deleteConnection.isPending}
+                    >
+                      {deleteConnection.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </Button>
                   </div>
                 </div>

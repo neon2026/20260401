@@ -134,6 +134,69 @@ export const appRouter = router({
           password: "***",
         };
       }),
+
+    // 删除数据库连接
+    deleteConnection: protectedProcedure
+      .input(z.object({ connectionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // 检查连接是否存在且属于当前用户
+        const connection = await db
+          .select()
+          .from(databaseConnections)
+          .where(
+            and(
+              eq(databaseConnections.id, input.connectionId),
+              eq(databaseConnections.userId, ctx.user.id)
+            )
+          )
+          .limit(1);
+
+        if (!connection.length) throw new Error("Connection not found or unauthorized");
+
+        // 手动清理关联数据（因为 schema 中没有定义级联删除）
+        
+        // 1. 获取所有关联的表定义
+        const tables = await db
+          .select({ id: semanticTableDefinitions.id })
+          .from(semanticTableDefinitions)
+          .where(eq(semanticTableDefinitions.connectionId, input.connectionId));
+        
+        const tableIds = tables.map(t => t.id);
+        
+        // 2. 删除关联的字段定义
+        if (tableIds.length > 0) {
+          for (const tableId of tableIds) {
+            await db
+              .delete(semanticColumnDefinitions)
+              .where(eq(semanticColumnDefinitions.tableId, tableId));
+          }
+        }
+        
+        // 3. 删除关联的表定义
+        await db
+          .delete(semanticTableDefinitions)
+          .where(eq(semanticTableDefinitions.connectionId, input.connectionId));
+          
+        // 4. 删除查询历史
+        await db
+          .delete(queryHistory)
+          .where(eq(queryHistory.connectionId, input.connectionId));
+          
+        // 5. 删除 AI 推断日志
+        await db
+          .delete(aiInferenceLog)
+          .where(eq(aiInferenceLog.connectionId, input.connectionId));
+
+        // 6. 最后删除连接本身
+        await db
+          .delete(databaseConnections)
+          .where(eq(databaseConnections.id, input.connectionId));
+
+        return { success: true };
+      }),
   }),
 
   // 元数据提取和 AI 推断
