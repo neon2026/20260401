@@ -212,8 +212,14 @@ const normalizeToolChoice = (
 const resolveApiUrl = () => {
   const baseUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
     ? ENV.forgeApiUrl
-    : "https://api.deepseek.com/v1";
-  return `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+    : "https://api.deepseek.com";
+  
+  const normalizedBase = baseUrl.replace(/\/$/, "");
+  // If the URL already ends with /v1, don't append it again
+  if (normalizedBase.endsWith("/v1")) {
+    return `${normalizedBase}/chat/completions`;
+  }
+  return `${normalizedBase}/v1/chat/completions`;
 };
 
 const assertApiKey = () => {
