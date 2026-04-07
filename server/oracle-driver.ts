@@ -63,24 +63,23 @@ export async function getTableMetadata(
   try {
     let query = `
       SELECT 
-        dtc.table_name,
-        dtc.column_name,
-        dtc.data_type,
-        dtc.nullable,
-        dtc.column_id,
-        dcc.comments
-      FROM dba_tab_columns dtc
-      LEFT JOIN dba_col_comments dcc ON dtc.table_name = dcc.table_name 
-        AND dtc.column_name = dcc.column_name
-        AND dtc.owner = dcc.owner
+        utc.table_name,
+        utc.column_name,
+        utc.data_type,
+        utc.nullable,
+        utc.column_id,
+        ucc.comments
+      FROM user_tab_columns utc
+      LEFT JOIN user_col_comments ucc ON utc.table_name = ucc.table_name 
+        AND utc.column_name = ucc.column_name
     `;
 
     if (tableNames && tableNames.length > 0) {
       const tableList = tableNames.map((t) => `'${t.toUpperCase()}'`).join(",");
-      query += ` WHERE dtc.table_name IN (${tableList})`;
+      query += ` WHERE utc.table_name IN (${tableList})`;
     }
 
-    query += ` ORDER BY dtc.table_name, dtc.column_id`;
+    query += ` ORDER BY utc.table_name, utc.column_id`;
 
     console.log('[Oracle] Executing metadata query...');
     // 设置 fetchSize 来控制一次获取的行数，避免内存溢出

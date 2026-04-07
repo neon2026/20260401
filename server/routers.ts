@@ -444,26 +444,41 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
           .from(semanticTableDefinitions)
           .where(eq(semanticTableDefinitions.connectionId, input.connectionId));
 
-        // 构建 Schema 信息供 AI 使用
-        const schemaInfo = tables
-          .map((t) => `表: ${t.tableName} (${t.tableAlias})\n${t.tableComment}`)
+        // 按表分组获取字段，构建详细的 Schema 上下文
+        const tableWithColumns = await Promise.all(tables.map(async (t) => {
+          const columns = await db
+            .select()
+            .from(semanticColumnDefinitions)
+            .where(eq(semanticColumnDefinitions.tableId, t.id));
+          return { ...t, columns };
+        }));
+
+        // 构建更详细的 Schema 信息
+        const schemaInfo = tableWithColumns
+          .map((t) => {
+            const colInfo = t.columns.map(c => `  - ${c.columnName} (${c.columnAlias || c.columnName}): ${c.columnComment || ''}`).join("\n");
+            return `物理表名: ${t.tableName}\n业务名称: ${t.tableAlias}\n业务描述: ${t.tableComment || '无'}\n字段列表:\n${colInfo}`;
+          })
           .join("\n\n");
 
         // 调用 AI 生成 SQL
         const sqlPrompt = `
-你是一个 Oracle SQL 专家。根据以下数据库表结构和用户的问题，生成对应的 SQL 查询语句。
+你是一个专业的 Oracle SQL 专家。请根据提供的数据库 Schema 信息，将用户的自然语言问题转换为精准的 Oracle SQL。
 
-数据库表结构:
+### 数据库 Schema 信息 (物理表名与业务含义对照):
 ${schemaInfo}
 
-用户问题: ${input.userQuestion}
+### 用户问题: 
+${input.userQuestion}
 
-重要提示：
-- 如果用户问题是查看数据库中的所有表，请使用 dba_tables 或 all_tables 视图，而不是 user_tables
-- 如果用户有 DBA 权限，优先使用 dba_tables 以获取所有表
-- 不要在 SQL 语句末尾添加分号
+### 核心规则 (必须遵守):
+1. **物理表名优先**: 必须使用上面列出的“物理表名”（如 STAFF, PATIENT），严禁在 SQL 中直接使用中文业务名称。
+2. **字段映射**: 参考字段列表中的“业务名称”来确定对应的“物理字段名”。
+3. **Oracle 语法**: 使用标准的 Oracle SQL 语法（如使用 ROWNUM 限制行数，不要使用 LIMIT）。
+4. **禁止分号**: SQL 语句末尾不要添加分号。
+5. **仅返回 SQL**: 不要包含任何解释、Markdown 格式或代码块标记，只返回纯文本 SQL。
 
-请生成一个有效的 Oracle SQL 查询语句。只返回 SQL 语句，不需要其他说明。
+请生成 SQL:
         `;
 
         const sqlResponse = await invokeLLM({
