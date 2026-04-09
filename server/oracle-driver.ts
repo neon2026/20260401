@@ -61,25 +61,30 @@ export async function getTableMetadata(
   tableNames?: string[]
 ): Promise<TableMetadata[]> {
   try {
+    // 尝试从 all_tab_columns 获取，这能看到当前用户有权访问的所有表（包括其他 schema 的）
     let query = `
       SELECT 
-        utc.table_name,
-        utc.column_name,
-        utc.data_type,
-        utc.nullable,
-        utc.column_id,
-        ucc.comments
-      FROM user_tab_columns utc
-      LEFT JOIN user_col_comments ucc ON utc.table_name = ucc.table_name 
-        AND utc.column_name = ucc.column_name
+        atc.table_name,
+        atc.column_name,
+        atc.data_type,
+        atc.nullable,
+        atc.column_id,
+        acc.comments,
+        atc.owner
+      FROM all_tab_columns atc
+      LEFT JOIN all_col_comments acc ON atc.table_name = acc.table_name 
+        AND atc.column_name = acc.column_name
+        AND atc.owner = acc.owner
+      WHERE atc.table_name NOT LIKE 'BIN$%' 
+        AND atc.owner NOT IN ('SYS', 'SYSTEM', 'OUTLN', 'DBSNMP', 'APPQOSSYS', 'WMSYS', 'EXFSYS', 'CTXSYS', 'XDB', 'ANONYMOUS', 'ORDSYS', 'ORDDATA', 'MDSYS', 'OLAPSYS', 'MDDATA', 'SPATIAL_WFS_ADMIN_USR', 'SPATIAL_CSW_ADMIN_USR', 'SYSMAN', 'MGMT_VIEW', 'FLOWS_FILES', 'APEX_030200', 'OWBSYS', 'OWBSYS_AUDIT', 'SCOTT', 'HR', 'OE', 'PM', 'IX', 'SH')
     `;
 
     if (tableNames && tableNames.length > 0) {
       const tableList = tableNames.map((t) => `'${t.toUpperCase()}'`).join(",");
-      query += ` WHERE utc.table_name IN (${tableList})`;
+      query += ` AND atc.table_name IN (${tableList})`;
     }
 
-    query += ` ORDER BY utc.table_name, utc.column_id`;
+    query += ` ORDER BY atc.table_name, atc.column_id`;
 
     console.log('[Oracle] Executing metadata query...');
     // 设置 fetchSize 来控制一次获取的行数，避免内存溢出
@@ -99,6 +104,11 @@ export async function getTableMetadata(
       const nullable = Array.isArray(row) ? row[3] : (row as any).NULLABLE;
       const columnId = Array.isArray(row) ? row[4] : (row as any).COLUMN_ID;
       const comments = Array.isArray(row) ? row[5] : (row as any).COMMENTS;
+      const owner = Array.isArray(row) ? row[6] : (row as any).OWNER;
+
+      if (columnId === 1) {
+        console.log(`[Oracle] Found table: ${owner}.${tableName}`);
+      }
 
       if (!tableMap.has(tableName)) {
         tableMap.set(tableName, []);

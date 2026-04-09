@@ -461,6 +461,9 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
           })
           .join("\n\n");
 
+        console.log(`[Query] User Question: ${input.userQuestion}`);
+        console.log(`[Query] Available Tables in Semantic Layer: ${tables.map(t => t.tableName).join(', ')}`);
+
         // 调用 AI 生成 SQL
         const sqlPrompt = `
 你是一个专业的 Oracle SQL 专家。请根据提供的数据库 Schema 信息，将用户的自然语言问题转换为精准的 Oracle SQL。
