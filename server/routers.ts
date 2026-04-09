@@ -456,30 +456,32 @@ ${columns.map((c) => `- ${c.columnName} (${c.dataType})`).join("\n")}
         // 构建更详细的 Schema 信息
         const schemaInfo = tableWithColumns
           .map((t) => {
-            const colInfo = t.columns.map(c => `  - ${c.columnName} (${c.columnAlias || c.columnName}): ${c.columnComment || ''}`).join("\n");
-            return `物理表名: ${t.tableName}\n业务名称: ${t.tableAlias}\n业务描述: ${t.tableComment || '无'}\n字段列表:\n${colInfo}`;
+            const colInfo = t.columns.map(c => `  - ${c.columnName} (业务名: ${c.columnAlias || c.columnName}, 描述: ${c.columnComment || '无'})`).join("\n");
+            return `【物理表名: ${t.tableName}】\n业务名称: ${t.tableAlias}\n业务描述: ${t.tableComment || '无'}\n字段列表:\n${colInfo}`;
           })
           .join("\n\n");
 
         console.log(`[Query] User Question: ${input.userQuestion}`);
-        console.log(`[Query] Available Tables in Semantic Layer: ${tables.map(t => t.tableName).join(', ')}`);
+        console.log(`[Query] Available Tables: ${tables.map(t => t.tableName).join(', ')}`);
+        console.log(`[Query] Total Columns Injected: ${tableWithColumns.reduce((acc, t) => acc + t.columns.length, 0)}`);
 
         // 调用 AI 生成 SQL
         const sqlPrompt = `
 你是一个专业的 Oracle SQL 专家。请根据提供的数据库 Schema 信息，将用户的自然语言问题转换为精准的 Oracle SQL。
 
-### 数据库 Schema 信息 (物理表名与业务含义对照):
+### 数据库 Schema 信息 (物理表名与字段对照):
 ${schemaInfo}
 
 ### 用户问题: 
 ${input.userQuestion}
 
 ### 核心规则 (必须遵守):
-1. **物理表名优先**: 必须使用上面列出的“物理表名”（如 STAFF, PATIENT），严禁在 SQL 中直接使用中文业务名称。
-2. **字段映射**: 参考字段列表中的“业务名称”来确定对应的“物理字段名”。
-3. **Oracle 语法**: 使用标准的 Oracle SQL 语法（如使用 ROWNUM 限制行数，不要使用 LIMIT）。
-4. **禁止分号**: SQL 语句末尾不要添加分号。
-5. **仅返回 SQL**: 不要包含任何解释、Markdown 格式或代码块标记，只返回纯文本 SQL。
+1. **严禁猜测字段名**: 必须且只能使用上面“字段列表”中列出的物理字段名（如 NAME, TITLE）。严禁生成类似 STAFF_NAME 这种不存在的字段。
+2. **物理表名优先**: 必须使用上面列出的“物理表名”（如 STAFF, PATIENT），严禁在 SQL 中直接使用中文业务名称。
+3. **字段映射**: 参考字段列表中的“业务名”和“描述”来确定对应的“物理字段名”。例如：如果用户问“谁是主任医师”，你应该在 STAFF 表中查找业务名为“职称”或描述包含“职称”的字段（即 TITLE），并查询其值为“主任医师”的记录。
+4. **Oracle 语法**: 使用标准的 Oracle SQL 语法（如使用 ROWNUM 限制行数，不要使用 LIMIT）。
+5. **禁止分号**: SQL 语句末尾不要添加分号。
+6. **仅返回 SQL**: 不要包含任何解释、Markdown 格式或代码块标记，只返回纯文本 SQL。
 
 请生成 SQL:
         `;
