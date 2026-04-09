@@ -2,8 +2,9 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { invokeLLM } from "./_core/llm";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { databaseConnections, semanticTableDefinitions, semanticColumnDefinitions } from "../drizzle/schema";
+import { createOracleConnection, getTableMetadata, closeConnection } from "./oracle-driver";
 
 /**
  * 自动化表结构分析路由
@@ -77,17 +78,43 @@ export const autoAnalysisRouter = router({
         }
 
         // 存储字段级别的语义信息
+        const tableId = existingTable.length ? existingTable[0].id : (await db.select({ id: semanticTableDefinitions.id }).from(semanticTableDefinitions).where(eq(semanticTableDefinitions.tableName, table.tableName)).limit(1))[0].id;
+
         for (const column of table.columns) {
           const columnRecord = {
-            tableName: table.tableName,
+            tableId: tableId,
             columnName: column.columnName,
-            chineseAlias: column.chineseAlias,
-            columnDescription: column.columnDescription,
-            comment: column.columnDescription,
+            columnAlias: column.chineseAlias,
+            columnComment: column.columnDescription,
+            dataType: "VARCHAR2", // 默认值，实际应从提取阶段传递
+            keywords: JSON.stringify([]),
+            exampleValues: JSON.stringify([]),
           };
 
-          // 这里可以扩展为单独的表来存储字段信息
-          // 目前暂时存储在 semanticLayers 表的 comment 字段中
+          const existingColumn = await db
+            .select()
+            .from(semanticColumnDefinitions)
+            .where(
+              and(
+                eq(semanticColumnDefinitions.tableId, tableId),
+                eq(semanticColumnDefinitions.columnName, column.columnName)
+              )
+            )
+            .limit(1);
+
+          if (existingColumn.length) {
+            await db
+              .update(semanticColumnDefinitions)
+              .set(columnRecord)
+              .where(
+                and(
+                  eq(semanticColumnDefinitions.tableId, tableId),
+                  eq(semanticColumnDefinitions.columnName, column.columnName)
+                )
+              );
+          } else {
+            await db.insert(semanticColumnDefinitions).values(columnRecord as any);
+          }
         }
 
         results.push({
@@ -109,30 +136,37 @@ export const autoAnalysisRouter = router({
  * 从 Oracle 数据库提取表结构
  */
 async function extractTableStructure(config: any) {
-  // 这里需要根据 config 中的数据库类型选择不同的提取方法
-  // 目前假设是 Oracle 数据库
+  console.log(`[AutoAnalysis] Starting extraction for ${config.host}:${config.port}/${config.database}`);
+  
+  let connection;
+  try {
+    connection = await createOracleConnection({
+      host: config.host,
+      port: config.port,
+      database: config.database,
+      username: config.username,
+      password: config.password,
+    });
 
-  // 实际的提取逻辑应该通过 oracledb 驱动执行 SQL
-  // 这里为了演示，返回示例数据
-
-  return [
-    {
-      tableName: "DEPARTMENT",
-      columns: [
-        { columnName: "DEPT_ID", dataType: "NUMBER" },
-        { columnName: "DEPT_CODE", dataType: "VARCHAR2" },
-        { columnName: "DEPT_NAME", dataType: "VARCHAR2" },
-      ],
-    },
-    {
-      tableName: "PATIENT",
-      columns: [
-        { columnName: "PATIENT_ID", dataType: "NUMBER" },
-        { columnName: "PATIENT_NO", dataType: "VARCHAR2" },
-        { columnName: "NAME", dataType: "VARCHAR2" },
-      ],
-    },
-  ];
+    const metadata = await getTableMetadata(connection);
+    console.log(`[AutoAnalysis] Successfully extracted ${metadata.length} tables from Oracle`);
+    
+    return metadata.map(table => ({
+      tableName: table.tableName,
+      columns: table.columns.map(col => ({
+        columnName: col.columnName,
+        dataType: col.dataType,
+        comments: col.comments
+      }))
+    }));
+  } catch (error: any) {
+    console.error(`[AutoAnalysis] Extraction failed: ${error.message}`);
+    throw new Error(`无法从 Oracle 提取元数据: ${error.message}`);
+  } finally {
+    if (connection) {
+      await closeConnection(connection);
+    }
+  }
 }
 
 /**
